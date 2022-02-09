@@ -4,6 +4,7 @@
 /telethon/_tl/alltlobjects.py
 /telethon/errors/_generated.py
 
+
 # User session
 *.session
 sessions/
