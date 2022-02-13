@@ -83,6 +83,6 @@ class StringSession(MemorySession):
             _STRUCT_PREFORMAT.format(len(ip)),
             self.state.dc_id,
             ip,
-            self.state.port,
+            self.dcs[self.state.dc_id].port,
             self.dcs[self.state.dc_id].auth
         ))
