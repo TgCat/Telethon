@@ -304,7 +304,7 @@ async def connect(self: 'TelegramClient') -> None:
         if me:
             await self._update_session_state(me, save=False)
 
-    await self._session.save()
+    self._session.save()
 
     self._updates_handle = asyncio.create_task(self._update_loop())
 
