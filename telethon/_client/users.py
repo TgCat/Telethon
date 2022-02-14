@@ -55,7 +55,7 @@ async def _call(self: 'TelegramClient', sender, request, ordered=False, flood_sl
             else:
                 raise errors.FLOOD_WAIT(420, f'FLOOD_WAIT_{diff}', request=r)
 
-        if self._session_state.takeout_id and not ignore_takeout.get():
+        if self._session_state and self._session_state.takeout_id and not ignore_takeout.get():
             r = _tl.fn.InvokeWithTakeout(self._session_state.takeout_id, r)
 
         if self._no_updates:
