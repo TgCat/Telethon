@@ -1,5 +1,7 @@
 from .._misc.tlobject import TLObject, TLRequest
 from ._custom import (
+    CodeType,
+    SentCode,
     AdminLogEvent,
     Draft,
     Dialog,
@@ -13,4 +15,7 @@ from ._custom import (
     InlineResults,
     QRLogin,
     ParticipantPermissions,
+    Chat,
+    User,
+    TermsOfService,
 )

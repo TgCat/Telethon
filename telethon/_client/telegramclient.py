@@ -313,9 +313,9 @@ class TelegramClient:
     @forward_call(auth.start)
     def start(
             self: 'TelegramClient',
+            *,
             phone: typing.Callable[[], str] = lambda: input('Please enter your phone (or bot token): '),
             password: typing.Callable[[], str] = lambda: getpass.getpass('Please enter your password: '),
-            *,
             bot_token: str = None,
             code_callback: typing.Callable[[], typing.Union[str, int]] = None,
             first_name: str = 'New User',
@@ -395,12 +395,10 @@ class TelegramClient:
     @forward_call(auth.sign_in)
     async def sign_in(
             self: 'TelegramClient',
-            phone: str = None,
-            code: typing.Union[str, int] = None,
             *,
+            code: typing.Union[str, int] = None,
             password: str = None,
-            bot_token: str = None,
-            phone_code_hash: str = None) -> 'typing.Union[_tl.User, _tl.auth.SentCode]':
+            bot_token: str = None) -> 'typing.Union[_tl.User, _tl.auth.SentCode]':
         """
         Logs in to Telegram to an existing user or bot account.
 
@@ -411,16 +409,13 @@ class TelegramClient:
             In most cases, you should simply use `start()` and not this method.
 
         Arguments
-            phone (`str` | `int`):
-                The phone to send the code to if no code was provided,
-                or to override the phone that was previously used with
-                these requests.
-
             code (`str` | `int`):
-                The code that Telegram sent. Note that if you have sent this
-                code through the application itself it will immediately
-                expire. If you want to send the code, obfuscate it somehow.
-                If you're not doing any of this you can ignore this note.
+                The code that Telegram sent.
+
+                To login to a user account, you must use `client.send_code_request` first.
+
+                The code will expire immediately if you send it through the application itself
+                as a safety measure.
 
             password (`str`):
                 2FA password, should be used if a previous call raised
@@ -431,33 +426,28 @@ class TelegramClient:
                 This should be the hash the `@BotFather <https://t.me/BotFather>`_
                 gave you.
 
-            phone_code_hash (`str`, optional):
-                The hash returned by `send_code_request`. This can be left as
-                `None` to use the last hash known for the phone to be used.
+                You do not need to call `client.send_code_request` to login to a bot account.
 
         Returns
-            The signed in user, or the information about
-            :meth:`send_code_request`.
+            The signed in `User`, if the method did not fail.
 
         Example
             .. code-block:: python
 
                 phone = '+34 123 123 123'
-                await client.sign_in(phone)  # send code
+                await client.send_code_request(phone)  # send code
 
                 code = input('enter code: ')
-                await client.sign_in(phone, code)
+                await client.sign_in(code=code)
         """
 
     @forward_call(auth.sign_up)
     async def sign_up(
             self: 'TelegramClient',
-            code: typing.Union[str, int],
             first_name: str,
             last_name: str = '',
             *,
-            phone: str = None,
-            phone_code_hash: str = None) -> '_tl.User':
+            code: typing.Union[str, int]) -> '_tl.User':
         """
         Signs up to Telegram as a new user account.
 
@@ -465,28 +455,25 @@ class TelegramClient:
 
         You must call `send_code_request` first.
 
-        **By using this method you're agreeing to Telegram's
-        Terms of Service. This is required and your account
-        will be banned otherwise.** See https://telegram.org/tos
-        and https://core.telegram.org/api/terms.
+        .. important::
+
+            When creating a new account, you must be sure to show the Terms of Service
+            to the user, and only after they approve, the code can accept the Terms of
+            Service. If not, they must be declined, in which case the account **will be
+            deleted**.
+
+            Make sure to use `client.get_tos` to fetch the Terms of Service, and to
+            use `tos.accept()` or `tos.decline()` after the user selects an option.
 
         Arguments
-            code (`str` | `int`):
-                The code sent by Telegram
-
             first_name (`str`):
                 The first name to be used by the new account.
 
             last_name (`str`, optional)
                 Optional last name.
 
-            phone (`str` | `int`, optional):
-                The phone to sign up. This will be the last phone used by
-                default (you normally don't need to set this).
-
-            phone_code_hash (`str`, optional):
-                The hash returned by `send_code_request`. This can be left as
-                `None` to use the last hash known for the phone to be used.
+            code (`str` | `int`):
+                The code sent by Telegram
 
         Returns
             The new created :tl:`User`.
@@ -498,13 +485,23 @@ class TelegramClient:
                 await client.send_code_request(phone)
 
                 code = input('enter code: ')
-                await client.sign_up(code, first_name='Anna', last_name='Banana')
+                await client.sign_up('Anna', 'Banana', code=code)
+
+                # IMPORTANT: you MUST retrieve the Terms of Service and accept
+                # them, or Telegram has every right to delete the account.
+                tos = await client.get_tos()
+                print(tos.html)
+
+                if code('accept (y/n)?: ') == 'y':
+                    await tos.accept()
+                else:
+                    await tos.decline()  # deletes the account!
         """
 
     @forward_call(auth.send_code_request)
     async def send_code_request(
             self: 'TelegramClient',
-            phone: str) -> '_tl.auth.SentCode':
+            phone: str) -> 'SentCode':
         """
         Sends the Telegram code needed to login to the given phone number.
 
@@ -513,14 +510,24 @@ class TelegramClient:
                 The phone to which the code will be sent.
 
         Returns
-            An instance of :tl:`SentCode`.
+            An instance of `SentCode`.
 
         Example
             .. code-block:: python
 
                 phone = '+34 123 123 123'
                 sent = await client.send_code_request(phone)
-                print(sent)
+                print(sent.type)
+
+                # Wait before resending sent.next_type, if any
+                if sent.next_type:
+                    await asyncio.sleep(sent.timeout or 0)
+                    resent = await client.send_code_request(phone)
+                    print(sent.type)
+
+                # Checking the code locally
+                code = input('Enter code: ')
+                print('Code looks OK:', resent.check(code))
         """
 
     @forward_call(auth.qr_login)
@@ -634,6 +641,42 @@ class TelegramClient:
 
                 # Removing the password
                 await client.edit_2fa(current_password='I_<3_Telethon')
+        """
+
+    @forward_call(auth.get_tos)
+    async def get_tos(self: 'TelegramClient') -> '_custom.TermsOfService':
+        """
+        Fetch `Telegram's Terms of Service`_, which every user must accept in order to use
+        Telegram, or they must otherwise `delete their account`_.
+
+        This method **must** be called after sign up, and **should** be called again
+        after it expires (at the risk of having the account terminated otherwise).
+
+        See the documentation of `TermsOfService` for more information.
+
+        The library cannot automate this process because the user must read the Terms of Service.
+        Automating its usage without reading the terms would be done at the developer's own risk.
+
+        Example
+            .. code-block:: python
+
+                # Fetch the ToS, forever (this could be a separate task, for example)
+                while True:
+                    tos = await client.get_tos()
+
+                    if tos:
+                        # There's an update or they must be accepted (you could show a popup)
+                        print(tos.html)
+                        if code('accept (y/n)?: ') == 'y':
+                            await tos.accept()
+                        else:
+                            await tos.decline()  # deletes the account!
+
+                    # after tos.timeout expires, the method should be called again!
+                    await asyncio.sleep(tos.timeout)
+
+        _Telegram's Terms of Service: https://telegram.org/tos
+        _delete their account: https://core.telegram.org/api/config#terms-of-service
         """
 
     async def __aenter__(self):
@@ -2637,7 +2680,7 @@ class TelegramClient:
                     print('Failed to connect')
         """
 
-    @forward_call(telegrambaseclient.is_connected)
+    @property
     def is_connected(self: 'TelegramClient') -> bool:
         """
         Returns `True` if the user has connected.
@@ -2647,9 +2690,11 @@ class TelegramClient:
         Example
             .. code-block:: python
 
-                while client.is_connected():
+                # This is a silly example - run_until_disconnected is often better suited
+                while client.is_connected:
                     await asyncio.sleep(1)
         """
+        return telegrambaseclient.is_connected(self)
 
     @forward_call(telegrambaseclient.disconnect)
     def disconnect(self: 'TelegramClient'):

@@ -141,7 +141,8 @@ def init(
     self._connect_timeout = connect_timeout
     self.flood_sleep_threshold = flood_sleep_threshold
     self._flood_waited_requests = {}  # prevent calls that would floodwait entirely
-    self._phone_code_hash = {}  # used during login to prevent exposing the hash to end users
+    self._phone_code_hash = None  # used during login to prevent exposing the hash to end users
+    self._tos = None  # used during signup and when fetching tos (tos/expiry)
 
     # Update handling.
     self._catch_up = catch_up
@@ -157,7 +158,7 @@ def init(
     if not api_id or not api_hash:
         raise ValueError(
             "Your API ID or Hash cannot be empty or None. "
-            "Refer to telethon.rtfd.io for more information.")
+            "Refer to docs.telethon.dev for more information.")
 
     if local_addr is not None:
         if use_ipv6 is False and ':' in local_addr:
@@ -308,12 +309,29 @@ async def connect(self: 'TelegramClient') -> None:
 
     self._updates_handle = asyncio.create_task(self._update_loop())
 
+
 def is_connected(self: 'TelegramClient') -> bool:
-    sender = getattr(self, '_sender', None)
-    return sender and sender.is_connected()
+    return self._sender.is_connected()
+
 
 async def disconnect(self: 'TelegramClient'):
-    return await _disconnect_coro(self)
+    await _disconnect(self)
+
+    # Also clean-up all exported senders because we're done with them
+    async with self._borrow_sender_lock:
+        for state, sender in self._borrowed_senders.values():
+            # Note that we're not checking for `state.should_disconnect()`.
+            # If the user wants to disconnect the client, ALL connections
+            # to Telegram (including exported senders) should be closed.
+            #
+            # Disconnect should never raise, so there's no try/except.
+            await sender.disconnect()
+            # Can't use `mark_disconnected` because it may be borrowed.
+            state._connected = False
+
+        # If any was borrowed
+        self._borrowed_senders.clear()
+
 
 def set_proxy(self: 'TelegramClient', proxy: typing.Union[tuple, dict]):
     init_proxy = None
@@ -332,24 +350,6 @@ def set_proxy(self: 'TelegramClient', proxy: typing.Union[tuple, dict]):
             connection._port = proxy[1]
         else:
             connection._proxy = proxy
-
-async def _disconnect_coro(self: 'TelegramClient'):
-    await _disconnect(self)
-
-    # Also clean-up all exported senders because we're done with them
-    async with self._borrow_sender_lock:
-        for state, sender in self._borrowed_senders.values():
-            # Note that we're not checking for `state.should_disconnect()`.
-            # If the user wants to disconnect the client, ALL connections
-            # to Telegram (including exported senders) should be closed.
-            #
-            # Disconnect should never raise, so there's no try/except.
-            await sender.disconnect()
-            # Can't use `mark_disconnected` because it may be borrowed.
-            state._connected = False
-
-        # If any was borrowed
-        self._borrowed_senders.clear()
 
 
 async def _disconnect(self: 'TelegramClient'):
