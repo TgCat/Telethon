@@ -624,7 +624,7 @@ class MessageMethods:
             album: bool = False,
             allow_cache: bool = False,
             background: bool = None,
-            noforwards: bool = False,
+            noforwards: bool = None,
             supports_streaming: bool = False,
             schedule: 'hints.DateLike' = None,
             comment_to: 'typing.Union[int, types.Message]' = None
@@ -770,7 +770,7 @@ class MessageMethods:
                 schedule=schedule, supports_streaming=supports_streaming,
                 formatting_entities=formatting_entities,
                 comment_to=comment_to, background=background, album=album,
-                allow_cache=allow_cache, send_as=send_as, noforwards=noforwards
+                allow_cache=allow_cache,noforwards=noforwards,send_as=send_as
             )
 
         entity = await self.get_input_entity(entity)
@@ -797,8 +797,7 @@ class MessageMethods:
                     reply_to=reply_to,
                     buttons=markup,
                     formatting_entities=message.entities,
-                    schedule=schedule,
-                    send_as=send_as, noforwards=noforwards
+                    schedule=schedule
                 )
 
             request = functions.messages.SendMessageRequest(
@@ -813,8 +812,8 @@ class MessageMethods:
                 no_webpage=not isinstance(
                     message.media, types.MessageMediaWebPage),
                 schedule_date=schedule, 
-                send_as=send_as,
-                noforwards=noforwards
+                noforwards=noforwards,
+                send_as=send_as
             )
             message = message.message
         else:
@@ -1408,6 +1407,48 @@ class MessageMethods:
 
         # Pinning a message that doesn't exist would RPC-error earlier
         return self._get_response_message(request, result, entity)
+    
+    
+async def send_reaction(
+    self: 'TelegramClient',
+    entity: 'hints.EntityLike',
+    message: 'hints.MessageIDLike',
+    reaction: typing.Optional[str] = None,
+    big: bool = False
+):
+    message = utils.get_message_id(message) or 0
+    if not reaction:
+        get_default_request = functions.help.GetAppConfig()
+        app_config = await self(get_default_request)
+        reaction = (
+            next(
+                (
+                    y for y in app_config.value
+                    if "reactions_default" in y.key
+                )
+            )
+        ).value.value
+    request = functions.messages.SendReaction(
+        big=big,
+        peer=entity,
+        msg_id=message,
+        reaction=reaction
+    )
+    result = await self(request)
+    for update in result.updates:
+        if isinstance(update, types.UpdateMessageReactions):
+            return update.reactions
+        if isinstance(update, types.UpdateEditMessage):
+            return update.message.reactions
+
+async def set_quick_reaction(
+    self: 'TelegramClient',
+    reaction: str
+):
+    request = functions.messages.SetDefaultReaction(
+        reaction=reaction
+    )
+    return await self(request)
 
     # endregion
 
