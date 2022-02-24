@@ -9,23 +9,29 @@ import warnings
 from ..helpers import add_surrogate, del_surrogate, within_surrogate, strip_text
 from ..tl import TLObject
 from ..tl.types import (
-    MessageEntityBold, MessageEntityItalic, MessageEntityCode,
-    MessageEntityPre, MessageEntityTextUrl, MessageEntityMentionName,
-    MessageEntityStrike,MessageEntityUnderline,MessageEntitySpoiler
+    MessageEntityBold,
+    MessageEntityItalic,
+    MessageEntityCode,
+    MessageEntityPre,
+    MessageEntityTextUrl,
+    MessageEntityMentionName,
+    MessageEntityStrike,
+    MessageEntityUnderline,
+    MessageEntitySpoiler
 )
 
 DEFAULT_DELIMITERS = {
-    '**': MessageEntityBold,
-    '__': MessageEntityItalic,
-    '~~': MessageEntityStrike,
-    '`': MessageEntityCode,
-    '```': MessageEntityPre
-    "--": MessageEntityUnderline,
+    "**": MessageEntityBold,
+    "__": MessageEntityItalic,
+    "~~": MessageEntityStrike,
+    "`": MessageEntityCode,
+    "```": MessageEntityPre,
+    "==": MessageEntityUnderline,
     "||": MessageEntitySpoiler
 }
 
-DEFAULT_URL_RE = re.compile(r'\[([\S\s]+?)\]\((.+?)\)')
-DEFAULT_URL_FORMAT = '[{0}]({1})'
+DEFAULT_URL_RE = re.compile(r"\[([\S\s]+?)\]\((.+?)\)")
+DEFAULT_URL_FORMAT = "[{0}]({1})"
 
 
 def overlap(a, b, x, y):
