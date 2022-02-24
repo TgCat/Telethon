@@ -42,7 +42,6 @@ def parse(message, delimiters=None, url_re=None):
     """
     Parses the given markdown message and returns its stripped representation
     plus a list of the MessageEntity's that were found.
-
     :param message: the message with markdown-like syntax to be parsed.
     :param delimiters: the delimiters to be used, {delimiter: type}.
     :param url_re: the URL bytes regex to be used. Must have two groups.
@@ -64,8 +63,12 @@ def parse(message, delimiters=None, url_re=None):
     # Build a regex to efficiently test all delimiters at once.
     # Note that the largest delimiter should go first, we don't
     # want ``` to be interpreted as a single back-tick in a code block.
-    delim_re = re.compile('|'.join('({})'.format(re.escape(k))
-                                   for k in sorted(delimiters, key=len, reverse=True)))
+    delim_re = re.compile(
+        "|".join(
+            "({})".format(re.escape(k))
+            for k in sorted(delimiters, key=len, reverse=True)
+        )
+    )
 
     # Cannot use a for loop because we need to skip some indices
     i = 0
@@ -88,26 +91,24 @@ def parse(message, delimiters=None, url_re=None):
             if end != -1:
 
                 # Remove the delimiter from the string
-                message = ''.join((
+                message = "".join(
+                    (
                         message[:i],
-                        message[i + len(delim):end],
-                        message[end + len(delim):]
-                ))
+                        message[i + len(delim) : end],
+                        message[end + len(delim) :],
+                    )
+                )
 
                 # Check other affected entities
                 for ent in result:
                     # If the end is after our start, it is affected
                     if ent.offset + ent.length > i:
                         # If the old start is also before ours, it is fully enclosed
-                        if ent.offset <= i:
-                            ent.length -= len(delim) * 2
-                        else:
-                            ent.length -= len(delim)
-
+                        ent.length -= len(delim) * 2 if ent.offset <= i else len(delim)
                 # Append the found entity
                 ent = delimiters[delim]
                 if ent == MessageEntityPre:
-                    result.append(ent(i, end - i - len(delim), ''))  # has 'lang'
+                    result.append(ent(i, end - i - len(delim), ""))  # has 'lang'
                 else:
                     result.append(ent(i, end - i - len(delim)))
 
@@ -121,11 +122,9 @@ def parse(message, delimiters=None, url_re=None):
             m = url_re.match(message, pos=i)
             if m:
                 # Replace the whole match with only the inline URL text.
-                message = ''.join((
-                    message[:m.start()],
-                    m.group(1),
-                    message[m.end():]
-                ))
+                message = "".join(
+                    (message[: m.start()], m.group(1), message[m.end() :])
+                )
 
                 delim_size = m.end() - m.start() - len(m.group())
                 for ent in result:
@@ -133,10 +132,13 @@ def parse(message, delimiters=None, url_re=None):
                     if ent.offset + ent.length > m.start():
                         ent.length -= delim_size
 
-                result.append(MessageEntityTextUrl(
-                    offset=m.start(), length=len(m.group(1)),
-                    url=del_surrogate(m.group(2))
-                ))
+                result.append(
+                    MessageEntityTextUrl(
+                        offset=m.start(),
+                        length=len(m.group(1)),
+                        url=del_surrogate(m.group(2)),
+                    )
+                )
                 i += len(m.group(1))
                 continue
 
@@ -150,7 +152,6 @@ def unparse(text, entities, delimiters=None, url_fmt=None):
     """
     Performs the reverse operation to .parse(), effectively returning
     markdown-like syntax given a normal text and its MessageEntity's.
-
     :param text: the text to be reconverted into markdown.
     :param entities: the MessageEntity's applied to the text.
     :return: a markdown-like text representing the combination of both inputs.
@@ -164,7 +165,9 @@ def unparse(text, entities, delimiters=None, url_fmt=None):
         delimiters = DEFAULT_DELIMITERS
 
     if url_fmt is not None:
-        warnings.warn('url_fmt is deprecated')  # since it complicates everything *a lot*
+        warnings.warn(
+            "url_fmt is deprecated"
+        )  # since it complicates everything *a lot*
 
     if isinstance(entities, TLObject):
         entities = (entities,)
@@ -175,7 +178,7 @@ def unparse(text, entities, delimiters=None, url_fmt=None):
     for entity in entities:
         s = entity.offset
         e = entity.offset + entity.length
-        delimiter = delimiters.get(type(entity), None)
+        delimiter = delimiters.get(type(entity))
         if delimiter:
             insert_at.append((s, delimiter))
             insert_at.append((e, delimiter))
@@ -184,10 +187,10 @@ def unparse(text, entities, delimiters=None, url_fmt=None):
             if isinstance(entity, MessageEntityTextUrl):
                 url = entity.url
             elif isinstance(entity, MessageEntityMentionName):
-                url = 'tg://user?id={}'.format(entity.user_id)
+                url = "tg://user?id={}".format(entity.user_id)
             if url:
-                insert_at.append((s, '['))
-                insert_at.append((e, ']({})'.format(url)))
+                insert_at.append((s, "["))
+                insert_at.append((e, "]({})".format(url)))
 
     insert_at.sort(key=lambda t: t[0])
     while insert_at:
